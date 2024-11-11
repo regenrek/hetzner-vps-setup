@@ -1,0 +1,42 @@
+hcloud_api_token = ""
+
+server_name     = "<INSERT_SERVER_NAME>"
+server_type     = "<INSERT_SERVER_TYPE>"
+server_location = "<INSERT_SERVER_LOCATION>"
+
+# Server configuration
+server_architecture   = "x86"  # or "arm" for ARM-based servers
+server_image_selector = "service=wireguard"
+
+server_wg_privatekey = ""
+server_wg_peers = [
+  {
+    publickey    = ""
+    presharedkey = ""
+  }
+]
+
+# use this if you don't have setup a firewall in your hcloud account
+create_firewall = true
+firewall_name = "spiderman-firewall"
+
+# Scenario 1: Create a new SSH key
+# create_ssh_key      = true
+# ssh_publickey      = ""
+# ssh_publickey_name = ""
+# Scenario 2: Use an existing SSH key
+# create_ssh_key      = false
+# existing_ssh_keys   = ["123456", "789012"]  # Hetzner SSH key IDs
+# or
+# existing_ssh_keys   = [] 
+
+
+users = [
+  {
+    name                = "username"
+    sudo                = true
+    shell              = "/bin/bash"
+    groups             = ["sudo"]
+    ssh_authorized_keys = ["ssh-rsa EXAMPLE_KEY_HERE"]
+  }
+]

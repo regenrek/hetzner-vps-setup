@@ -1,0 +1,30 @@
+#cloud-config
+users:
+%{ for user in users ~}
+  - name: ${user.name}
+    sudo: ${user.sudo}
+    shell: ${user.shell}
+    groups: ${jsonencode(user.groups)}
+    ssh_authorized_keys:
+%{ for key in user.ssh_authorized_keys ~}
+      - ${key}
+%{ endfor ~}
+%{ endfor ~}
+
+disable_root: false
+ssh_pwauth: false
+
+write_files:
+  - path: /etc/wireguard/wg0.conf
+    content: |
+      [Interface]
+      PrivateKey = ${wg_server_wg_privatekey}
+      ListenPort = 51820
+      Address = 10.100.0.1/16, fd10:100::1/112
+      
+%{ for peer_index, peer in wg_server_wg_peers }
+      [Peer]
+      PublicKey = ${peer.publickey}
+      PresharedKey = ${peer.presharedkey}
+      AllowedIPs = 10.100.0.${peer_index+2}/32, fd10:100::${peer_index+2}/128
+%{ endfor ~}

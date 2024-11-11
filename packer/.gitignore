@@ -1,0 +1,10 @@
+packer_cache/
+dist/
+
+packer.auto.pkrvars.hcl
+
+*.box
+
+crash.log
+
+hetzner/seed/user-data

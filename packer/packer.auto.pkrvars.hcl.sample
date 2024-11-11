@@ -1,0 +1,5 @@
+hcloud_api_token = ""
+server_type      = "cx42"
+location         = "fsn1"
+image            = "ubuntu-24.04"
+server_name      = "wireguard"
