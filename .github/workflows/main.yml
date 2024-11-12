@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: "Main"
+
+on:
+  push:
+    tags: ["*"]
+    branches: ["*"]
+  pull_request:
+    branches: ["*"]
+  schedule:
+    - cron: "20 04 1,15 * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  validate-packer:
+    name: "Validate Packer configuration"
+    runs-on: "ubuntu-24.04"
+    permissions:
+      contents: "read"
+    defaults:
+      run:
+        working-directory: "./packer/"
+    steps:
+      - name: "Checkout project"
+        uses: "actions/checkout@v4"
+      - name: "Install dependencies"
+        run: |
+          curl --proto '=https' --tlsv1.3 -sSf 'https://apt.releases.hashicorp.com/gpg' | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/hashicorp.gpg
+          printf '%s\n' "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/trusted.gpg.d/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends packer
+      - name: "Init Packer"
+        run: |
+          packer init ./
+      - name: "Validate configuration"
+        run: |
+          packer validate -syntax-only ./
+      - name: "Check configuration format"
+        run: |
+          packer fmt -check -diff ./
+
+  validate-terraform:
+    name: "Validate Terraform configuration"
+    runs-on: "ubuntu-24.04"
+    permissions:
+      contents: "read"
+    defaults:
+      run:
+        working-directory: "./terraform/"
+    steps:
+      - name: "Checkout project"
+        uses: "actions/checkout@v4"
+      - name: "Install dependencies"
+        run: |
+          curl --proto '=https' --tlsv1.3 -sSf 'https://apt.releases.hashicorp.com/gpg' | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/hashicorp.gpg
+          printf '%s\n' "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/trusted.gpg.d/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends terraform
+      - name: "Init Terraform"
+        run: |
+          terraform init
+      - name: "Validate configuration"
+        run: |
+          terraform validate ./
+      - name: "Check configuration format"
+        run: |
+          terraform fmt -check -diff ./
+
+  build-packer:
+    name: "Build Packer image"
+    needs: ["validate-packer"]
+    runs-on: "ubuntu-24.04"
+    permissions:
+      contents: "read"
+    defaults:
+      run:
+        working-directory: "./packer/"
+    steps:
+      - name: "Checkout project"
+        uses: "actions/checkout@v4"
+      - name: "Install dependencies"
+        run: |
+          curl --proto '=https' --tlsv1.3 -sSf 'https://apt.releases.hashicorp.com/gpg' | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/hashicorp.gpg
+          printf '%s\n' "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/trusted.gpg.d/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends packer qemu-utils qemu-system-x86 ovmf cloud-image-utils openssh-client sshpass
+      - name: "Init Packer"
+        run: |
+          packer init ./
+      - name: "Build image"
+        run: |
+          make build-qemu PACKER_LOG=1 \
+            PKR_VAR_qemu_efi_firmware_code=/usr/share/OVMF/OVMF_CODE_4M.fd \
+            PKR_VAR_qemu_efi_firmware_vars=/usr/share/OVMF/OVMF_VARS_4M.fd
+      - name: "Test image"
+        run: |
+          EFI_FIRMWARE_CODE=/usr/share/OVMF/OVMF_CODE_4M.fd \
+          EFI_FIRMWARE_VARS=/usr/share/OVMF/OVMF_VARS_4M.fd \
+          ./qemu/start-vm.sh &
+          set -- sshpass -p toor ssh root@127.0.0.1 -p 1122 -o StrictHostKeyChecking=no -o ConnectTimeout=1
+          attempt=0; until [ "${attempt:?}" -gt 60 ] || "$@" exit; do attempt=$((attempt+1)); sleep 5; done
+          "$@" 'set -x; systemctl is-system-running --wait; ret="$?"; systemctl --failed; exit "${ret:?}"'
+          "$@" 'set -x; wg show wg0'
+          "$@" 'set -x; poweroff'

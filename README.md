@@ -156,14 +156,30 @@ A ready-to-deploy WireGuard VPN server setup for [Hetzner Cloud](https://hetzner
 
 #### 5. Accessing Your VPN
 
-   After deployment, you can get WireGuard peer configurations directly from the server:
+   After deployment, you can get WireGuard peer configurations in two ways:
+
+   ##### Option 1: Using Terraform Output (Recommended)
+
+   1. Generate the peer configuration file:
+      ```bash
+      # For a specific peer (e.g., peer 0)
+      ./scripts/get-peer-config.sh 0
+      
+      # The configuration will be saved to terraform/wg-peer-0.conf
+      ```
+
+   2. Import the configuration:
+      - For mobile: Use your WireGuard app to import the .conf file
+      - For desktop: Copy the .conf file to your WireGuard configuration directory
+
+   ##### Option 2: Manual Generation on Server
 
    1. SSH into your server:
       ```bash
       ssh your-username@server-ip
       ```
 
-   2. Generate peer configuration (replace values with your peer's details):
+   2. Generate peer configuration:
       ```bash
       sudo wg-create-peer \
         --interface wg0 \
@@ -172,22 +188,12 @@ A ready-to-deploy WireGuard VPN server setup for [Hetzner Cloud](https://hetzner
         --peer-preshared-key "PEER_PRESHARED_KEY"
       ```
 
-      This will output:
-      - A QR code for mobile devices
-      - Complete WireGuard configuration for desktop clients
-      - The peer's IP addresses and DNS settings
-
-   3. For mobile: Scan the QR code with your WireGuard mobile app
-
-   4. For desktop: Copy the configuration text between `[Interface]` and `[Peer]` sections into a new file (e.g., `wg0-client.conf`) and import it into your WireGuard desktop client
-
-   Note: The peer number (N) starts from 0 and should match the order in your `terraform.tfvars` file.
-
 #### 6. Managing WireGuard Peers
 
    To add or remove peers:
-   - Update the `wireguard_peers` list in `terraform.tfvars`
-   - Run `terraform apply` to apply the changes
+   1. Update the `server_wg_peers` list in `terraform.tfvars`
+   2. Run `terraform apply` to apply the changes
+   3. Generate new peer configurations using either method above
 
 7. Managing Users
 
@@ -336,4 +342,3 @@ terraform workspace list
 rm -rf .terraform/ .terraform.lock.hcl terraform.tfstate*
 terraform init
 ```
-# hetzner-vps-setup

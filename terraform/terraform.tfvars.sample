@@ -21,9 +21,9 @@ create_firewall = true
 firewall_name = "spiderman-firewall"
 
 # Scenario 1: Create a new SSH key
-# create_ssh_key      = true
-# ssh_publickey      = ""
-# ssh_publickey_name = ""
+create_ssh_key      = true
+ssh_publickey      = ""
+ssh_publickey_name = ""
 # Scenario 2: Use an existing SSH key
 # create_ssh_key      = false
 # existing_ssh_keys   = ["123456", "789012"]  # Hetzner SSH key IDs
@@ -36,7 +36,7 @@ users = [
     name                = "username"
     sudo                = true
     shell              = "/bin/bash"
-    groups             = ["sudo"]
+    groups             = ["sudo", "ssh-user"]
     ssh_authorized_keys = ["ssh-rsa EXAMPLE_KEY_HERE"]
   }
 ]
