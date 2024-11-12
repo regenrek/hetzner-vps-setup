@@ -1,0 +1,114 @@
+---
+- name: Harden SSH Configuration
+  hosts: all
+  become: yes
+  vars:
+    wireguard_ip: "10.100.0.1"
+    wireguard_ip6: "fd10:100::1"
+
+  tasks:
+    - name: Update SSH Configuration
+      blockinfile:
+        path: /etc/ssh/sshd_config
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+        block: |
+          # Only listen on WireGuard interface
+          ListenAddress {{ wireguard_ip }}
+          ListenAddress {{ wireguard_ip6 }}
+        insertafter: "^# This is the sshd server system-wide configuration file."
+      notify: restart sshd
+
+    - name: Remove old ListenAddress entries
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^ListenAddress\s+0\.0\.0\.0'
+        state: absent
+      notify: restart sshd
+
+    - name: Remove old ListenAddress IPv6 entries
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^ListenAddress\s+::0'
+        state: absent
+      notify: restart sshd
+
+    - name: Update nftables configuration
+      copy:
+        dest: /etc/nftables.conf
+        content: |
+          #!/usr/sbin/nft -f
+
+          flush ruleset;
+
+          table inet filter {
+            chain INPUT {
+              type filter hook input priority 0; policy drop;
+
+              # Accept loopback interface
+              iif lo accept;
+
+              # Accept established connections
+              ct state { established, related } accept;
+
+              # Accept ICMP and ICMPv6 traffic
+              meta l4proto { icmp, ipv6-icmp } accept;
+
+              # Accept neighbour discovery
+              icmpv6 type { nd-neighbor-solicit, nd-router-advert, nd-neighbor-advert } accept;
+
+              # Accept SSH only from WireGuard interface
+              iifname wg0 tcp dport 122 accept;
+
+              # Accept WireGuard traffic
+              udp dport 51820 accept;
+              udp dport 53 accept;
+
+              # Log failed WireGuard connection attempts
+              udp dport 51820 counter log prefix "wireguard-failed: " drop;
+              udp dport 53 counter log prefix "wireguard-failed: " drop;
+            }
+
+            chain FORWARD {
+              type filter hook forward priority 0; policy drop;
+
+              # Accept packet forwarding on WireGuard interface
+              iifname wg0 accept;
+              oifname wg0 ct state { established, related } accept;
+            }
+
+            chain OUTPUT {
+              type filter hook output priority 0; policy accept;
+            }
+          }
+
+          table inet nat {
+            chain PREROUTING {
+              type nat hook prerouting priority -100; policy accept;
+
+              # Early drop of invalid packets
+              ct state invalid drop;
+
+              # Accept WireGuard traffic via port 53/UDP
+              iifname != wg0 udp dport 53 redirect to 51820;
+            }
+
+            chain POSTROUTING {
+              type nat hook postrouting priority 100; policy accept;
+
+              # Masquerade WireGuard traffic
+              oif != lo ip saddr 10.100.0.1/16 masquerade;
+              oif != lo ip6 saddr fd10:100::1/112 masquerade;
+            }
+          }
+      notify: reload nftables
+
+  handlers:
+    - name: restart sshd
+      service:
+        name: sshd
+        state: restarted
+
+    - name: reload nftables
+      service:
+        name: nftables
+        state: reloaded 

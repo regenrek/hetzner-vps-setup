@@ -1,30 +1,55 @@
 #cloud-config
-users:
-%{ for user in users ~}
-  - name: ${user.name}
-    sudo: ${user.sudo}
-    shell: ${user.shell}
-    groups: ${jsonencode(user.groups)}
-    ssh_authorized_keys:
-%{ for key in user.ssh_authorized_keys ~}
-      - ${key}
-%{ endfor ~}
-%{ endfor ~}
 
+# System configuration
 disable_root: false
 ssh_pwauth: false
 
+# Create admin user
+users:
+  - name: admin
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    groups: [sudo, ssh-user]
+    ssh_authorized_keys:
+      - ${ssh_publickey}
+    lock_passwd: true
+    ssh_pwauth: false
+
+# Ensure SSH directories are created with correct permissions
+runcmd:
+  - mkdir -p /home/admin/.ssh
+  - chmod 700 /home/admin/.ssh
+  - touch /home/admin/.ssh/authorized_keys
+  - chmod 600 /home/admin/.ssh/authorized_keys
+  - chown -R admin:admin /home/admin/.ssh
+  %{~ for index, peer in server_wg_peers ~}
+  - |
+    wg-create-peer \
+      --interface wg0 \
+      --peer-number "${index}" \
+      --peer-comment "${peer.comment}" \
+      --peer-private-key "none" \
+      --peer-public-key "${peer.publickey}" \
+      --peer-preshared-key "${peer.presharedkey}" \
+      --quiet
+  %{~ endfor ~}
+  - systemctl try-restart wg-quick@wg0.service
+
 write_files:
+  - path: "/etc/wireguard/wg0.conf.d/privatekey"
+    owner: "root:root"
+    permissions: "0600"
+    content: |
+      ${server_wg_privatekey}
   - path: /etc/wireguard/wg0.conf
     content: |
       [Interface]
-      PrivateKey = ${wg_server_wg_privatekey}
+      PrivateKey = ${server_wg_privatekey}
       ListenPort = 51820
       Address = 10.100.0.1/16, fd10:100::1/112
-      
-%{ for peer_index, peer in wg_server_wg_peers }
-      [Peer]
-      PublicKey = ${peer.publickey}
-      PresharedKey = ${peer.presharedkey}
-      AllowedIPs = 10.100.0.${peer_index+2}/32, fd10:100::${peer_index+2}/128
-%{ endfor ~}
+  - path: /etc/wireguard/wg0.conf.d/peer-users
+    owner: "root:root"
+    permissions: "0600"
+    content: |
+      # Map peer index to system username
+      0:admin

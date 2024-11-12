@@ -1,9 +1,10 @@
 all:
-  hosts:
+  children:
     controller:
-      ansible_host: 159.69.117.83
+      hosts:
+        # insert your server ip or hostname here
   vars:
-    ansible_user: kevin
+    ansible_user: admin
     ansible_port: 122
     ansible_become: true
     ansible_become_method: sudo

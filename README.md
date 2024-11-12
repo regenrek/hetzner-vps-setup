@@ -9,7 +9,7 @@ A ready-to-deploy WireGuard VPN server setup for [Hetzner Cloud](https://hetzner
 - **Security Hardened** - Automated updates, [nftables](https://wiki.nftables.org) firewall, and [Fail2ban](https://fail2ban.org)
 - **Easy Management** - Simple peer and user administration through Terraform
 - **Multi-Platform** - Supports both x86 and ARM architectures
-- **[Coolify](https://coolify.io) Integration** - Self-hosted Heroku/Netlify alternative for application deployment
+- **[Coolify](https://coolify.io) Integration** - Self-hosted PaaS alternative for application deployment
 
 ## Prerequisites
 
@@ -94,42 +94,24 @@ A ready-to-deploy WireGuard VPN server setup for [Hetzner Cloud](https://hetzner
 
    Edit `terraform.tfvars` and configure:
    ```hcl
-   # Required variables - Must match Packer configuration
-   hcloud_api_token = ""           # Your hetzner API Token
-   server_location = "fsn1"        # Should match location from Packer
-   
-   # Server configuration
-   server_architecture   = "x86"    # "arm" for ARM-based servers
-   server_image_selector = "service=spiderman"  # Matches label from Packer
-   
-   # Optional server name
-   server_name = "my-vpn-server"
-   
-   # WireGuard configuration
-   server_wg_privatekey = ""        # Your WireGuard private key
-   server_wg_peers = [              # List of WireGuard peer configurations
-     {
-       publickey    = ""            # Peer's public key
-       presharedkey = ""            # Peer's preshared key
-     }
-   ]
+   # Required Hetzner Configuration
+   hcloud_api_token = ""          # Your Hetzner API Token
+
+   # Server Configuration
+   server_name         = ""       # Name of your server
+   server_type         = ""       # Server type (e.g., "cx11")
+   server_location     = ""       # Location (e.g., "fsn1")
+   server_architecture = "x86"    # "x86" or "arm" for ARM-based servers
+
+   # WireGuard Configuration
+   server_wg_privatekey = ""      # Generated with: wg genkey
+
+   # Firewall Configuration
+   firewall_name = "spiderman-firewall"  # Name for the firewall rules
 
    # SSH Configuration
-   ssh_publickey      = ""          # Your SSH public key
-   ssh_publickey_name = ""          # Name for the SSH key in Hetzner
-
-   # User configuration
-   users = [
-     {
-       name                = "your-username"
-       sudo                = true
-       shell              = "/bin/bash"
-       groups             = ["sudo"]
-       ssh_authorized_keys = [
-         "ssh-rsa YOUR_SSH_KEY"     # Your SSH public key
-       ]
-     }
-   ]
+   ssh_publickey      = ""        # Your SSH public key
+   ssh_publickey_name = ""        # Name for the SSH key in Hetzner
    ```
 
    Important: Make sure these values match between Packer and Terraform:
@@ -346,7 +328,69 @@ terraform init
 
 ## Optional Components
 
-### Coolify Installation
+### Ansible Integration
+
+The project includes Ansible playbooks for additional configuration and management:
+
+#### Available Playbooks
+
+1. **WireGuard Management**
+   ```sh
+   # Add a new WireGuard peer
+   ansible-playbook -i inventory/inventory.yml playbooks/pb_wireguard_peer.yml -e "peer_name=laptop"
+
+   # Manage multiple peers
+   ansible-playbook -i inventory/inventory.yml playbooks/pb_wireguard_peers.yml
+   ```
+
+2. **User Management**
+   ```sh
+   # Configure system users
+   ansible-playbook -i inventory/inventory.yml playbooks/pb_users.yml
+   ```
+
+3. **SSH Hardening**
+   ```sh
+   # Apply SSH security configurations
+   ansible-playbook -i inventory/inventory.yml playbooks/pb_harden_ssh.yml
+   ```
+
+4. **Coolify Installation**
+   ```sh
+   # Install and configure Coolify
+   ansible-playbook -i inventory/inventory.yml playbooks/pb_coolify.yml
+   ```
+
+#### Ansible Configuration
+
+1. Set up your inventory:
+   ```sh
+   cp inventory/inventory.yml.tpl inventory/inventory.yml
+   ```
+
+2. Edit `inventory.yml` with your server details:
+   ```yaml
+   all:
+     hosts:
+       controller:
+         ansible_host: YOUR_SERVER_IP
+     vars:
+       ansible_user: YOUR_USER
+       ansible_port: 122
+       ansible_become: true
+       ansible_become_method: sudo
+   ```
+
+3. Using Docker for Ansible (optional):
+   ```sh
+   docker build -t ansible-controller .
+   docker run -it --rm \
+     -v $(pwd):/ansible \
+     -v ~/.ssh:/secrets \
+     ansible-controller
+   ```
+
+### Coolify Integration
 
 [Coolify](https://coolify.io) is a self-hosted Vercel/Netlify alternative that can be installed on your VPN server. It provides:
 
@@ -368,3 +412,24 @@ To install Coolify:
    - For security, configure SSL and change the default credentials
 
 Note: Ensure your firewall allows access to port 3000 for Coolify's web interface.
+
+### Firewall Configuration
+
+The server comes with a pre-configured firewall that allows:
+- SSH access on port 122 (non-standard port for security)
+- WireGuard VPN on ports 51820 (UDP) and 53 (UDP)
+- ICMP for basic connectivity testing
+- Coolify-specific ports:
+  - 6001: Coolify UI
+  - 6002: Coolify API
+  - 8000: Coolify Applications
+
+## Security Considerations
+
+Additional security notes:
+- SSH runs on non-standard port 122 for improved security
+- SSH access is restricted to WireGuard interface only (configured via Ansible)
+- Automated user management with secure defaults
+- Fail2ban integration for brute-force protection
+- Regular security updates are automated
+- WireGuard peers can be managed securely through Ansible playbooks

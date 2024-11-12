@@ -1,0 +1,83 @@
+---
+- name: Manage WireGuard Peer Configurations
+  hosts: all
+  become: yes
+  vars:
+    peers:
+      - name: kevin
+        allowed_ips: "10.110.0.2/32
+      - name: technik
+        allowed_ips: "10.110.0.3/32
+    wireguard:
+      interface: wg0
+      server_public_ip: "{{ ansible_default_ipv4.address }}"
+      server_port: 51820
+      server_address: "10.100.0.1/16,fd10:100::1/112"
+      dns_servers: "10.100.0.1,fd10:100::1"
+
+  tasks:
+    - name: Ensure WireGuard peer directory exists
+      file:
+        path: /etc/wireguard/peers
+        state: directory
+        mode: '0750'
+
+    - name: Generate peer private keys
+      shell: |
+        wg genkey > /etc/wireguard/peers/{{ item.name }}.key
+        chmod 600 /etc/wireguard/peers/{{ item.name }}.key
+      args:
+        creates: "/etc/wireguard/peers/{{ item.name }}.key"
+      loop: "{{ peers }}"
+
+    - name: Generate peer public keys
+      shell: |
+        cat /etc/wireguard/peers/{{ item.name }}.key | wg pubkey > /etc/wireguard/peers/{{ item.name }}.pub
+      args:
+        creates: "/etc/wireguard/peers/{{ item.name }}.pub"
+      loop: "{{ peers }}"
+
+    - name: Read peer private keys
+      slurp:
+        path: "/etc/wireguard/peers/{{ item.name }}.key"
+      register: peer_private_keys
+      loop: "{{ peers }}"
+
+    - name: Read peer public keys
+      slurp:
+        path: "/etc/wireguard/peers/{{ item.name }}.pub"
+      register: peer_public_keys
+      loop: "{{ peers }}"
+
+    - name: Read server public key
+      shell: cat /etc/wireguard/server.pub
+      register: server_public_key
+      changed_when: false
+
+    - name: Generate peer configurations
+      template:
+        src: templates/peer-config.conf.j2
+        dest: "/etc/wireguard/peers/{{ item.name }}.conf"
+        mode: '0640'
+      loop: "{{ peers }}"
+      vars:
+        server_pubkey: "{{ server_public_key.stdout }}"
+
+    - name: Update server configuration with peer entries
+      template:
+        src: templates/peer-entry.conf.j2
+        dest: "/etc/wireguard/wg0.conf.d/peer-{{ item.name }}.conf"
+        mode: '0640'
+      loop: "{{ peers }}"
+      notify: reload wireguard
+
+    - name: Fetch peer configurations
+      fetch:
+        src: "/etc/wireguard/peers/{{ item.name }}.conf"
+        dest: "configs/{{ inventory_hostname }}/{{ item.name }}.conf"
+        flat: yes
+      loop: "{{ peers }}"
+
+  handlers:
+    - name: reload wireguard
+      shell: wg syncconf wg0 <(wg-quick strip wg0)

@@ -1,0 +1,11 @@
+[Interface]
+PrivateKey = {{ (keys.results | selectattr('item', 'equalto', 'private') | first).content | b64decode | trim }}
+Address = 10.100.0.{{ peer_index }}/32, fd10:100::{{ peer_index }}/128
+DNS = {{ wireguard.dns_servers }}
+
+[Peer]
+PublicKey = {{ lookup('file', '/etc/wireguard/server.pub') | trim }}
+PresharedKey = {{ (keys.results | selectattr('item', 'equalto', 'preshared') | first).content | b64decode | trim }}
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = {{ wireguard.server_public_ip }}:{{ wireguard.server_port }}
+PersistentKeepalive = 25 

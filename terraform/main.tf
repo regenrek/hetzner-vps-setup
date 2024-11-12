@@ -12,16 +12,15 @@ provider "hcloud" {
 }
 
 data "hcloud_image" "serv_image" {
-  with_selector     = var.server_image_selector
+  with_selector     = "service=${var.service_label}"
   with_architecture = var.server_architecture
   most_recent       = true
 }
 
 resource "hcloud_firewall" "serv_firewall" {
-  count  = var.create_firewall ? 1 : 0
   name   = var.firewall_name
-  labels = { service = "coolify" }
-  
+  labels = { service = var.service_label }
+
   # Allow ICMP for basic connectivity testing
   rule {
     description = "ICMP"
@@ -30,13 +29,13 @@ resource "hcloud_firewall" "serv_firewall" {
     source_ips  = ["0.0.0.0/0", "::0/0"]
   }
 
-  # Allow SSH only from VPN clients
+  # Allow SSH from anywhere
   rule {
-    description = "SSH from VPN"
+    description = "SSH"
     direction   = "in"
     protocol    = "tcp"
     port        = "122"
-    source_ips  = ["10.100.0.0/16", "fd10:100::/112"]
+    source_ips  = ["0.0.0.0/0", "::0/0"]
   }
 
   # Allow Coolify UI and API ports
@@ -83,22 +82,19 @@ resource "hcloud_firewall" "serv_firewall" {
 }
 
 resource "hcloud_ssh_key" "serv_ssh_key" {
-  count      = var.create_ssh_key ? 1 : 0
   public_key = var.ssh_publickey
   name       = var.ssh_publickey_name
 }
 
 resource "hcloud_server" "hetznerserver" {
-  image        = data.hcloud_image.serv_image.id
-  name         = var.server_name
-  server_type  = var.server_type
-  location     = var.server_location
-  labels       = { service = "wireguard" }
-  firewall_ids = var.create_firewall ? [hcloud_firewall.serv_firewall[0].id] : []
-  ssh_keys = var.create_ssh_key ? [hcloud_ssh_key.serv_ssh_key[0].id] : var.existing_ssh_keys
-  user_data    = templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {
-    users                   = var.users
-    wg_server_wg_privatekey = var.server_wg_privatekey
-    wg_server_wg_peers      = var.server_wg_peers
+  image       = data.hcloud_image.serv_image.id
+  name        = var.server_name
+  server_type = var.server_type
+  location    = var.server_location
+  labels      = { service = var.service_label }
+  user_data = templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {
+    server_wg_privatekey = var.server_wg_privatekey
+    server_wg_peers      = var.server_wg_peers
+    ssh_publickey        = var.ssh_publickey
   })
 }

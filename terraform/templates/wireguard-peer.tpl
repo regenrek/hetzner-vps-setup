@@ -1,5 +1,5 @@
 [Interface]
-PrivateKey = ${peer_private_key}
+PrivateKey = ${server_wg_privatekey}
 Address = ${peer_address}
 DNS = ${dns_servers}
 

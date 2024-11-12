@@ -1,0 +1,4 @@
+# {{ item.name }}
+[Peer]
+PublicKey = {{ (peer_public_keys | selectattr('item.name', 'equalto', item.name) | first).content | b64decode | trim }}
+AllowedIPs = {{ item.allowed_ips }} 

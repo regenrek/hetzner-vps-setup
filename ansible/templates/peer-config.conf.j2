@@ -1,0 +1,10 @@
+[Interface]
+PrivateKey = {{ (peer_private_keys | selectattr('item.name', 'equalto', item.name) | first).content | b64decode | trim }}
+Address = {{ item.allowed_ips | regex_replace('/32|/128', '') }}
+DNS = {{ wireguard.dns_servers }}
+
+[Peer]
+PublicKey = {{ server_pubkey }}
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = {{ wireguard.server_public_ip }}:{{ wireguard.server_port }}
+PersistentKeepalive = 25 
