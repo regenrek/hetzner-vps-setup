@@ -1,0 +1,24 @@
+---
+- name: Install Coolify
+  hosts: controller
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Download Coolify installation script
+      ansible.builtin.get_url:
+        url: "https://cdn.coollabs.io/coolify/install.sh"
+        dest: "/tmp/install.sh"
+        mode: "0770"
+
+    - name: Execute Coolify installation script
+      ansible.builtin.command: "/tmp/install.sh"
+      register: install_result
+      changed_when: install_result.rc != 0
+      environment:
+        COOLIFY_WHITE_LABELED: "false"
+        COOLIFY_AUTO_UPDATE: "true"
+        COOLIFY_DATABASE_URL: "file:/data/db.sqlite"
+
+    - name: Debug installation script output
+      ansible.builtin.debug:
+        var: install_result.stdout_lines

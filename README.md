@@ -9,6 +9,7 @@ A ready-to-deploy WireGuard VPN server setup for [Hetzner Cloud](https://hetzner
 - **Security Hardened** - Automated updates, [nftables](https://wiki.nftables.org) firewall, and [Fail2ban](https://fail2ban.org)
 - **Easy Management** - Simple peer and user administration through Terraform
 - **Multi-Platform** - Supports both x86 and ARM architectures
+- **[Coolify](https://coolify.io) Integration** - Self-hosted Heroku/Netlify alternative for application deployment
 
 ## Prerequisites
 
@@ -173,7 +174,7 @@ A ready-to-deploy WireGuard VPN server setup for [Hetzner Cloud](https://hetzner
       - For desktop: Copy the .conf file to your WireGuard configuration directory
 
    ##### Option 2: Manual Generation on Server
-
+ n
    1. SSH into your server:
       ```bash
       ssh your-username@server-ip
@@ -342,3 +343,28 @@ terraform workspace list
 rm -rf .terraform/ .terraform.lock.hcl terraform.tfstate*
 terraform init
 ```
+
+## Optional Components
+
+### Coolify Installation
+
+[Coolify](https://coolify.io) is a self-hosted Vercel/Netlify alternative that can be installed on your VPN server. It provides:
+
+To install Coolify:
+
+1. Navigate to the ansible directory:
+   ```sh
+   cd ./ansible
+   ```
+
+2. Run the Coolify installation playbook:
+   ```sh
+   ansible-playbook -i inventory/inventory.yml playbooks/pb_coolify.yml
+   ```
+
+3. Access Coolify:
+   - Open your browser and navigate to `http://your-server-ip:3000`
+   - Complete the initial setup process
+   - For security, configure SSL and change the default credentials
+
+Note: Ensure your firewall allows access to port 3000 for Coolify's web interface.

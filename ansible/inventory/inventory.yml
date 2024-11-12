@@ -1,0 +1,10 @@
+all:
+  children:
+    controller:
+      hosts:
+        coolify.ujstor.com:
+  vars:
+    ansible_user: kevin
+    ansible_port: 122
+    ansible_become: true
+    ansible_become_method: sudo

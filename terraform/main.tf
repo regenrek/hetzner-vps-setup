@@ -20,20 +20,51 @@ data "hcloud_image" "serv_image" {
 resource "hcloud_firewall" "serv_firewall" {
   count  = var.create_firewall ? 1 : 0
   name   = var.firewall_name
-  labels = { service = "wireguard" }
+  labels = { service = "coolify" }
+  
+  # Allow ICMP for basic connectivity testing
   rule {
     description = "ICMP"
     direction   = "in"
     protocol    = "icmp"
     source_ips  = ["0.0.0.0/0", "::0/0"]
   }
+
+  # Allow SSH only from VPN clients
   rule {
-    description = "SSH"
+    description = "SSH from VPN"
     direction   = "in"
     protocol    = "tcp"
     port        = "122"
+    source_ips  = ["10.100.0.0/16", "fd10:100::/112"]
+  }
+
+  # Allow Coolify UI and API ports
+  rule {
+    description = "Coolify UI"
+    direction   = "in"
+    protocol    = "tcp"
+    port        = "6001"
     source_ips  = ["0.0.0.0/0", "::0/0"]
   }
+
+  rule {
+    description = "Coolify API"
+    direction   = "in"
+    protocol    = "tcp"
+    port        = "6002"
+    source_ips  = ["0.0.0.0/0", "::0/0"]
+  }
+
+  rule {
+    description = "Coolify Apps"
+    direction   = "in"
+    protocol    = "tcp"
+    port        = "8000"
+    source_ips  = ["0.0.0.0/0", "::0/0"]
+  }
+
+  # Keep your existing WireGuard rules
   rule {
     description = "WireGuard"
     direction   = "in"
@@ -41,6 +72,7 @@ resource "hcloud_firewall" "serv_firewall" {
     port        = "51820"
     source_ips  = ["0.0.0.0/0", "::0/0"]
   }
+
   rule {
     description = "WireGuard (alt)"
     direction   = "in"
@@ -56,7 +88,7 @@ resource "hcloud_ssh_key" "serv_ssh_key" {
   name       = var.ssh_publickey_name
 }
 
-resource "hcloud_server" "hetzner_server" {
+resource "hcloud_server" "hetznerserver" {
   image        = data.hcloud_image.serv_image.id
   name         = var.server_name
   server_type  = var.server_type
