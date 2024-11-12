@@ -29,13 +29,12 @@ variable "server_wg_privatekey" {
 }
 
 variable "server_wg_peers" {
+  description = "List of WireGuard peer configurations"
   type = list(object({
-    comment      = optional(string, "")
     publickey    = string
+    privatekey   = string
     presharedkey = string
   }))
-  description = "WireGuard peers"
-  default     = []
 }
 
 variable "firewall_name" {
